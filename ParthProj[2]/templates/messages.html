@@ -1,0 +1,383 @@
+{% extends 'base.html' %}
+
+{% block title %}My Messages{% endblock %}
+
+{% block head_extra %}
+<style>
+    .message-card {
+        margin-bottom: 1rem;
+        border-radius: 8px;
+    }
+    .received-message {
+        border-left: 4px solid #007bff;
+    }
+    .sent-message {
+        border-left: 4px solid #28a745;
+    }
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+    .message-actions {
+        margin-top: 0.5rem;
+    }
+    .tab-pane {
+        padding-top: 1rem;
+    }
+    .new-message-form .form-group {
+        margin-bottom: 1rem;
+    }
+    .unread {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    .alert-info {
+        margin-top: 1rem;
+    }
+    .unread-message {
+        box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    }
+    /* Reverse messages to show newest first */
+    #received-messages, #sent-messages {
+        display: flex;
+        flex-direction: column;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="mb-4">Your Messages</h1>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <ul class="nav nav-tabs mb-3" id="messagesTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="inbox-tab" data-bs-toggle="tab" data-bs-target="#inbox" type="button" role="tab" aria-controls="inbox" aria-selected="true">
+                Inbox
+                {% if received_messages|selectattr("read", "equalto", false)|list|length > 0 %}
+                <span class="badge bg-danger">{{ received_messages|selectattr("read", "equalto", false)|list|length }}</span>
+                {% endif %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="sent-tab" data-bs-toggle="tab" data-bs-target="#sent" type="button" role="tab" aria-controls="sent" aria-selected="false">Sent</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="new-message-tab" data-bs-toggle="tab" data-bs-target="#new-message" type="button" role="tab" aria-controls="new-message" aria-selected="false">New Message</button>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="messagesTabContent">
+        <!-- Inbox Tab -->
+        <div class="tab-pane fade show active" id="inbox" role="tabpanel" aria-labelledby="inbox-tab">
+            <div id="received-messages">
+                {% if received_messages %}
+                    {% for message in received_messages %}
+                        {% include 'message_item.html' %}
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info">You have no messages.</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Sent Tab -->
+        <div class="tab-pane fade" id="sent" role="tabpanel" aria-labelledby="sent-tab">
+            {% if sent_messages %}
+                {% for message in sent_messages %}
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between">
+                        <span>To: {{ message.recipient.username }}</span>
+                        <small class="text-muted">{{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+                    </div>
+                    <div class="card-body">
+                        {% if message.event %}
+                        <div class="mb-3">
+                            <strong>Event:</strong> {{ message.event.platform }} - {{ message.event.title }} ({{ message.event.start_time.strftime('%Y-%m-%d %H:%M') }})
+                        </div>
+                        {% endif %}
+                        <p class="card-text">{{ message.body }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">You haven't sent any messages.</div>
+            {% endif %}
+        </div>
+        
+        <!-- New Message Tab -->
+        <div class="tab-pane fade" id="new-message" role="tabpanel" aria-labelledby="new-message-tab">
+            <form id="new-message-form">
+                <div class="mb-3">
+                    <label for="recipient" class="form-label">Recipient Username</label>
+                    <input type="text" class="form-control" id="recipient" name="recipient" required>
+                </div>
+                <div class="mb-3">
+                    <label for="message" class="form-label">Message</label>
+                    <textarea class="form-control" id="message" name="message" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Send Message</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reply Modal -->
+<div class="modal fade" id="replyModal" tabindex="-1" aria-labelledby="replyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="replyModalLabel">Reply to <span id="reply-recipient"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reply-form">
+                    <input type="hidden" id="reply-to" name="recipient">
+                    <div class="mb-3">
+                        <label for="reply-message" class="form-label">Message</label>
+                        <textarea class="form-control" id="reply-message" name="message" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="send-reply">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Socket.IO setup
+        const socket = io();
+        
+        // Listen for new messages
+        socket.on('new_message', function(msg) {
+            // Only process if we're the recipient
+            if (msg.recipient_id == {{ current_user.id }}) {
+                console.log('New message received:', msg);
+                
+                // Check if we're in the inbox tab
+                const inboxTab = document.getElementById('inbox');
+                if (inboxTab.classList.contains('active')) {
+                    // Create a temporary container to render the new message
+                    const template = document.createElement('template');
+                    
+                    // Format the timestamp
+                    const timestamp = new Date(msg.timestamp);
+                    const formattedDate = timestamp.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                    });
+                    
+                    // Create HTML for the new message card
+                    template.innerHTML = `
+                    <div class="card mb-3 border-primary unread-message">
+                        <div class="card-header d-flex justify-content-between">
+                            <span>From: ${msg.sender}</span>
+                            <small class="text-muted">${formattedDate}</small>
+                        </div>
+                        <div class="card-body">
+                            ${msg.event ? 
+                                `<div class="mb-3">
+                                    <strong>Event:</strong> ${msg.event.platform} - ${msg.event.title} 
+                                    (${new Date(msg.event.start_time).toLocaleString()})
+                                </div>` : ''}
+                            <p class="card-text">${msg.body}</p>
+                            <button type="button" class="btn btn-sm btn-outline-primary reply-btn" 
+                                    data-recipient="${msg.sender}" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#replyModal">
+                                Reply
+                            </button>
+                        </div>
+                    </div>`;
+                    
+                    // Add to the messages container
+                    const messagesContainer = document.getElementById('received-messages');
+                    
+                    // Remove "no messages" alert if it exists
+                    const noMessagesAlert = messagesContainer.querySelector('.alert-info');
+                    if (noMessagesAlert) {
+                        noMessagesAlert.remove();
+                    }
+                    
+                    // Add the new message at the top
+                    messagesContainer.insertBefore(template.content.firstChild, messagesContainer.firstChild);
+                    
+                    // Add event listener to the new reply button
+                    const newReplyBtn = messagesContainer.querySelector('.reply-btn:first-child');
+                    if (newReplyBtn) {
+                        newReplyBtn.addEventListener('click', setupReplyModal);
+                    }
+                }
+                
+                // Update the inbox tab badge
+                const inboxTabEl = document.getElementById('inbox-tab');
+                let badge = inboxTabEl.querySelector('.badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'badge bg-danger';
+                    inboxTabEl.appendChild(badge);
+                }
+                
+                const currentCount = badge.textContent ? parseInt(badge.textContent) : 0;
+                badge.textContent = currentCount + 1;
+            }
+        });
+        
+        // Set up reply modal
+        document.querySelectorAll('.reply-btn').forEach(button => {
+            button.addEventListener('click', setupReplyModal);
+        });
+        
+        // Set up mark as read buttons
+        document.querySelectorAll('.mark-read-btn').forEach(button => {
+            button.addEventListener('click', markMessageAsRead);
+        });
+        
+        function markMessageAsRead(event) {
+            const messageCard = event.target.closest('.card');
+            const messageId = messageCard.dataset.messageId;
+            
+            fetch('/mark_message_read', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `message_id=${encodeURIComponent(messageId)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update UI to show message is read
+                    messageCard.classList.remove('border-primary', 'unread-message');
+                    event.target.remove(); // Remove the mark as read button
+                    
+                    // Update badge count in the inbox tab
+                    const inboxTabEl = document.getElementById('inbox-tab');
+                    const badge = inboxTabEl.querySelector('.badge');
+                    
+                    if (badge) {
+                        if (data.unread_count > 0) {
+                            badge.textContent = data.unread_count;
+                        } else {
+                            badge.remove(); // Remove badge if no unread messages
+                        }
+                    }
+                    
+                    // Also update the navbar badge if it exists
+                    const navBadge = document.querySelector('.nav-link .badge');
+                    if (navBadge) {
+                        if (data.unread_count > 0) {
+                            navBadge.textContent = data.unread_count;
+                        } else {
+                            navBadge.remove();
+                        }
+                    }
+                } else {
+                    alert(data.message || 'Failed to mark message as read');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while marking the message as read');
+            });
+        }
+        
+        function setupReplyModal(event) {
+            const recipient = event.target.dataset.recipient;
+            document.getElementById('reply-recipient').textContent = recipient;
+            document.getElementById('reply-to').value = recipient;
+        }
+        
+        // Handle reply form submission
+        document.getElementById('send-reply').addEventListener('click', function() {
+            const recipient = document.getElementById('reply-to').value;
+            const message = document.getElementById('reply-message').value;
+            
+            if (!message.trim()) {
+                alert('Message cannot be empty');
+                return;
+            }
+            
+            // Send message via fetch
+            fetch('/send_message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `recipient_username=${encodeURIComponent(recipient)}&body=${encodeURIComponent(message)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset form and close modal
+                    document.getElementById('reply-message').value = '';
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('replyModal'));
+                    modal.hide();
+                    
+                    // Show success message
+                    alert('Message sent successfully!');
+                } else {
+                    alert(data.error || 'Failed to send message');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while sending your message');
+            });
+        });
+        
+        // Handle new message form submission
+        document.getElementById('new-message-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const recipient = document.getElementById('recipient').value;
+            const message = document.getElementById('message').value;
+            
+            // Send message via fetch
+            fetch('/send_message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `recipient_username=${encodeURIComponent(recipient)}&body=${encodeURIComponent(message)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Reset form
+                    document.getElementById('recipient').value = '';
+                    document.getElementById('message').value = '';
+                    
+                    // Show success message
+                    alert('Message sent successfully!');
+                } else {
+                    alert(data.error || 'Failed to send message');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while sending your message');
+            });
+        });
+    });
+</script>
+{% endblock %} 

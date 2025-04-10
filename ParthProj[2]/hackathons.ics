@@ -1,0 +1,60 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Hackathon Calendar//EN
+BEGIN:VEVENT
+SUMMARY:Agentforce Virtual Hackathon
+DTSTART:20250305T000000
+DTEND:20250430T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 5921 participants\nRegistration Link: https://agentforcehackathon.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Meta Horizon Creator Competition: Mobile Genre Showdown
+DTSTART:20250311T000000
+DTEND:20250509T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 1012 participants\nRegistration Link: https://mhcp-mobile-genre-competition.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:HP & NVIDIA Developer Challenge
+DTSTART:20250407T000000
+DTEND:20250609T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 680 participants\nRegistration Link: https://hpaistudio.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:GNEC Hackathon 2025 Spring - Compete For UN-Affiliated/NGO Internships & Prizes
+DTSTART:20250312T000000
+DTEND:20250510T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 869 participants\nRegistration Link: https://gnec-hackathon-2025-spring.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:PortXFolio
+DTSTART:20250316T000000
+DTEND:20250424T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 615 participants\nRegistration Link: https://portxfolio25.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:AWS Community Day Bengaluru - Blogathon
+DTSTART:20250301T000000
+DTEND:20250415T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 375 participants\nRegistration Link: https://acdblr-blogathon.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Hackonomics 2025
+DTSTART:20250201T000000
+DTEND:20250615T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 364 participants\nRegistration Link: https://hackonomics25.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:CodePi 2025.1
+DTSTART:20250216T000000
+DTEND:20250525T000000
+LOCATION:Online
+DESCRIPTION:Platform: Devpost\nPrize: Unknown\nParticipants: 204 participants\nRegistration Link: https://codepi-ic-2025-1.devpost.com/?ref_feature=challenge&ref_medium=discover
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,29 @@
+{% if not message.read %}
+<div class="card mb-3 border-primary unread-message" data-message-id="{{ message.id }}">
+{% else %}
+<div class="card mb-3" data-message-id="{{ message.id }}">
+{% endif %}
+    <div class="card-header d-flex justify-content-between">
+        <span>From: {{ message.sender.username }}</span>
+        <small class="text-muted">{{ message.timestamp.strftime('%Y-%m-%d %H:%M') }}</small>
+    </div>
+    <div class="card-body">
+        {% if message.event %}
+        <div class="mb-3">
+            <strong>Event:</strong> {{ message.event.platform }} - {{ message.event.title }} ({{ message.event.start_time.strftime('%Y-%m-%d %H:%M') }})
+        </div>
+        {% endif %}
+        <p class="card-text">{{ message.body }}</p>
+        <button type="button" class="btn btn-sm btn-outline-primary reply-btn" 
+                data-recipient="{{ message.sender.username }}" 
+                data-bs-toggle="modal" 
+                data-bs-target="#replyModal">
+            Reply
+        </button>
+        {% if not message.read %}
+        <button type="button" class="btn btn-sm btn-outline-secondary mark-read-btn">
+            Mark as Read
+        </button>
+        {% endif %}
+    </div>
+</div> 

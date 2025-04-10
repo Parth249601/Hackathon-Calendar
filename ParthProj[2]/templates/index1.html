@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+
+{% block title %}Event Calendar{% endblock %}
+
+{% block head_extra %}
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    {# Bootstrap CSS is included in base.html #}
+    {# <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"> #}
+    {# Custom CSS is linked in base.html, but ensure styles needed here are included #}
+    {# <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet"> #}
+    <style>
+        /* Add any specific styles for this page here if needed */
+        #event-details .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            opacity: 0.5;
+        }
+        #event-details .close-btn:hover {
+            opacity: 0.8;
+        }
+        #teammates-list ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        #teammates-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .message-form textarea {
+            width: 70%;
+            margin-right: 5px;
+        }
+        /* Ensure calendar has some height */
+        #calendar {
+            min-height: 400px; 
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12 text-center mb-4">
+                <h1>Tech Events Calendar</h1>
+                
+                <!-- Tab navigation -->
+                <ul class="nav nav-tabs justify-content-center mb-3" id="eventTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="hackathons-tab" data-type="hackathons" type="button" role="tab">Hackathons</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="contests-tab" data-type="contests" type="button" role="tab">CP Contests</button>
+                    </li>
+                </ul>
+                
+                <!-- Download buttons -->
+                <div class="tab-content" id="downloadButtons">
+                    <div class="tab-pane fade show active" id="hackathons-download" role="tabpanel" aria-labelledby="hackathons-tab">
+                        <a href="/download/hackathons" class="btn btn-primary">Download Hackathons</a>
+                    </div>
+                    <div class="tab-pane fade" id="contests-download" role="tabpanel" aria-labelledby="contests-tab">
+                        <a href="/download/contests" class="btn btn-primary">Download CP Contests</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-9">
+                <div id="loading-spinner" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Loading event data...</p>
+                </div>
+                <div id="calendar" class="d-none"></div>
+            </div>
+            <div class="col-md-3">
+                <div id="event-details" class="card d-none">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Event Details</h5>
+                        <button type="button" class="close-btn" id="close-event-details" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <h6 id="event-name" class="card-subtitle mb-2 text-muted"></h6>
+                        <p class="card-text">
+                            <strong>Start:</strong> <span id="event-start"></span><br>
+                            <strong>End:</strong> <span id="event-end"></span><br>
+                            <div id="registration-times">
+                                <strong>Registration Start:</strong> <span id="event-reg-start"></span><br>
+                                <strong>Registration End:</strong> <span id="event-reg-end"></span><br>
+                            </div>
+                            <strong>Location:</strong> <span id="event-location"></span><br>
+                            <strong>Prize:</strong> <span id="event-prize"></span><br>
+                            <strong>Participants:</strong> <span id="event-participants"></span><br>
+                            <strong>Platform:</strong> <span id="event-platform"></span><br>
+                            <div id="duration-container" class="d-none">
+                                <strong>Duration:</strong> <span id="event-duration"></span><br>
+                            </div>
+                        </p>
+                        <a id="event-link" href="#" class="btn btn-primary" target="_blank">Register</a>
+                        
+                        {% if current_user.is_authenticated %}
+                        <hr>
+                        <div id="user-actions" class="d-flex flex-column">
+                            <button id="save-event-btn" class="btn btn-success mb-2">
+                                <i class="fas fa-bookmark"></i> Save This Event
+                            </button>
+                            <button id="find-teammates-btn" class="btn btn-info mb-2">
+                                <i class="fas fa-users"></i> Find Teammates for This Event
+                            </button>
+                            <div id="action-status" class="mt-2 small"></div> {# For displaying save/message status #}
+                        </div>
+                        
+                        <div id="teammates-section" class="mt-3 d-none">
+                            <h6 class="border-bottom pb-2 mb-3">Other Users Who Saved This Event:</h6>
+                            <div id="teammates-list">
+                                {# Teammate list and message forms will be injected here by JS #}
+                            </div>
+                            <div id="teammates-status" class="mt-2 small"></div> {# For displaying find teammates status #}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts_extra %}
+    {# Bootstrap JS is included in base.html #}
+    {# <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script> #}
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    {# Include the original calendar logic and add new interaction handlers #}
+    <script>
+        // Pass login status to JS safer
+        const USER_LOGGED_IN_STR = "{{ current_user.is_authenticated | string | lower }}";
+        const USER_LOGGED_IN = USER_LOGGED_IN_STR === 'true';
+
+        let currentEventData = null; // Store data of the currently selected event
+        
+        // Cache for event data
+        const eventCache = {
+            hackathons: null,
+            contests: null,
+            lastFetchTime: {
+                hackathons: null,
+                contests: null
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const eventDetailsEl = document.getElementById('event-details');
+            const closeEventDetailsBtn = document.getElementById('close-event-details');
+            const eventTabs = document.querySelectorAll('#eventTabs .nav-link');
+            const downloadButtonContainers = document.querySelectorAll('#downloadButtons .tab-pane');
+            const calendarInstance = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,listWeek'
+                },
+                // Set custom time format to display AM/PM properly
+                eventTimeFormat: {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    meridiem: 'short' // This ensures 'AM' or 'PM' is displayed
+                },
+                eventDidMount: function(info) {
+                    // Apply appropriate colors based on event type
+                    if (info.event.extendedProps.type === 'hackathon') {
+                        info.el.style.backgroundColor = '#007bff';
+                        info.el.style.borderColor = '#007bff';
+                    } else if (info.event.extendedProps.type === 'contest') {
+                        info.el.style.backgroundColor = '#28a745';
+                        info.el.style.borderColor = '#28a745';
+                    }
+                    
+                    // Add padding to all event elements
+                    info.el.style.padding = '3px 5px';
+                    
+                    // Target the title element for additional styling
+                    const titleEl = info.el.querySelector('.fc-event-title');
+                    const timeEl = info.el.querySelector('.fc-event-time');
+                    
+                    // Force text color to white for better contrast
+                    if (titleEl) {
+                        titleEl.style.color = 'white';
+                        titleEl.style.fontWeight = '500';
+                        titleEl.style.paddingTop = '2px'; // Extra padding for the title
+                    }
+                    if (timeEl) {
+                        timeEl.style.color = 'white';
+                        timeEl.style.fontWeight = '500';
+                    }
+                    
+                    // Force pointer cursor
+                    info.el.style.cursor = 'pointer';
+                    
+                    // Add hover effect
+                    info.el.addEventListener('mouseenter', function() {
+                        // Remove zoom effect but keep color change
+                        // this.style.transform = 'scale(1.02)';
+                        if (info.event.extendedProps.type === 'hackathon') {
+                            this.style.backgroundColor = '#0056b3';
+                            this.style.borderColor = '#0056b3';
+                        } else if (info.event.extendedProps.type === 'contest') {
+                            this.style.backgroundColor = '#218838';
+                            this.style.borderColor = '#218838';
+                        }
+                        this.style.zIndex = '10';
+                    });
+                    
+                    info.el.addEventListener('mouseleave', function() {
+                        // Remove zoom effect but keep color change
+                        // this.style.transform = 'scale(1)';
+                        if (info.event.extendedProps.type === 'hackathon') {
+                            this.style.backgroundColor = '#007bff';
+                            this.style.borderColor = '#007bff';
+                        } else if (info.event.extendedProps.type === 'contest') {
+                            this.style.backgroundColor = '#28a745';
+                            this.style.borderColor = '#28a745';
+                        }
+                        this.style.zIndex = '';
+                    });
+                },
+                events: function(fetchInfo, successCallback, failureCallback) {
+                    const activeTab = document.querySelector('#eventTabs .nav-link.active');
+                    const eventType = activeTab ? activeTab.getAttribute('data-type') : 'hackathons'; // Default to hackathons
+                    
+                    // Check if we already have cached data for this event type
+                    const cachedData = eventCache[eventType];
+                    const lastFetchTime = eventCache.lastFetchTime[eventType];
+                    const cacheExpirationMs = 10 * 60 * 1000; // 10 minutes in milliseconds
+                    const now = new Date().getTime();
+                    
+                    // Use cache if available and not expired
+                    if (cachedData && lastFetchTime && (now - lastFetchTime < cacheExpirationMs)) {
+                        console.log(`Using cached ${eventType} data from ${new Date(lastFetchTime).toLocaleTimeString()}`);
+                        loadingSpinner.classList.add('d-none');
+                        calendarEl.classList.remove('d-none');
+                        successCallback(cachedData);
+                        return;
+                    }
+                    
+                    // Otherwise fetch from API
+                    const apiUrl = eventType === 'hackathons' ? '/api/hackathons' : '/api/contests';
+                    console.log(`Fetching fresh ${eventType} data from API`);
+                    
+                    loadingSpinner.classList.remove('d-none');
+                    calendarEl.classList.add('d-none');
+
+                    fetch(apiUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            loadingSpinner.classList.add('d-none');
+                            calendarEl.classList.remove('d-none');
+
+                            // Format and cache the data
+                            const formattedEvents = data.map(event => ({
+                                ...event, 
+                                extendedProps: { ...event },
+                                classNames: event.type === 'hackathon' ? ['event-hackathon'] : event.type === 'contest' ? ['event-contest'] : []
+                            }));
+                            
+                            // Update the cache
+                            eventCache[eventType] = formattedEvents;
+                            eventCache.lastFetchTime[eventType] = now;
+                            
+                            successCallback(formattedEvents);
+                        })
+                        .catch(error => {
+                            console.error(`Error fetching ${eventType}:`, error);
+                            loadingSpinner.innerHTML = '<p class="text-danger">Failed to load events.</p>';
+                            failureCallback(error);
+                        });
+                },
+                eventClick: function(info) {
+                    const event = info.event;
+                    const props = event.extendedProps; // Use extendedProps
+
+                    // Store current event data for actions
+                    currentEventData = {
+                        title: props.title,
+                        start: props.start, // Make sure this is the correct start time identifier
+                        platform: props.platform
+                        // Add other identifiers if necessary (e.g., unique URL if available)
+                    };
+
+                    // --- Populate basic event details --- 
+                    document.getElementById('event-name').textContent = props.title || 'N/A';
+                    document.getElementById('event-start').textContent = props.start ? new Date(props.start).toLocaleString() : 'N/A';
+                    document.getElementById('event-end').textContent = props.end ? new Date(props.end).toLocaleString() : 'N/A';
+                    document.getElementById('event-location').textContent = props.location || 'N/A';
+                    document.getElementById('event-prize').textContent = props.prize || 'N/A';
+                    document.getElementById('event-participants').textContent = props.participants || 'N/A';
+                    document.getElementById('event-platform').textContent = props.platform || 'N/A';
+                    const eventLink = document.getElementById('event-link');
+                    eventLink.href = props.registration_link || '#';
+                    eventLink.style.display = props.registration_link ? 'inline-block' : 'none';
+
+                    // Show/hide based on event type (Hackathon vs Contest)
+                    const regTimesDiv = document.getElementById('registration-times');
+                    const durationDiv = document.getElementById('duration-container');
+                    if (props.type === 'hackathon') {
+                        regTimesDiv.style.display = 'block';
+                        durationDiv.classList.add('d-none');
+                        document.getElementById('event-reg-start').textContent = props.start ? new Date(props.start).toLocaleString() : 'N/A'; 
+                        document.getElementById('event-reg-end').textContent = props.end ? new Date(props.end).toLocaleString() : 'N/A';
+                    } else if (props.type === 'contest') {
+                        regTimesDiv.style.display = 'block'; // CF also has registration times
+                        durationDiv.classList.remove('d-none');
+                        document.getElementById('event-reg-start').textContent = props.registration_start ? new Date(props.registration_start).toLocaleString() : 'N/A';
+                        document.getElementById('event-reg-end').textContent = props.registration_end ? new Date(props.registration_end).toLocaleString() : 'N/A';
+                        document.getElementById('event-duration').textContent = props.duration || 'N/A';
+                    } else {
+                        regTimesDiv.style.display = 'none';
+                        durationDiv.classList.add('d-none');
+                    }
+
+                    // --- Reset user action elements (Lookup elements *inside* the handler) --- 
+                    if (USER_LOGGED_IN) {
+                        const actionStatusEl = document.getElementById('action-status');
+                        const teammatesSection = document.getElementById('teammates-section');
+                        const teammatesListEl = document.getElementById('teammates-list');
+                        const teammatesStatusEl = document.getElementById('teammates-status');
+                        
+                        // Check if elements exist before using them
+                        if (actionStatusEl) actionStatusEl.textContent = ''; 
+                        if (teammatesSection) teammatesSection.classList.add('d-none');
+                        if (teammatesListEl) teammatesListEl.innerHTML = '';
+                        if (teammatesStatusEl) teammatesStatusEl.textContent = '';
+                    }
+
+                    // --- Apply specific class to details panel for styling ---
+                    const eventDetailsEl = document.getElementById('event-details');
+                    if (eventDetailsEl) {
+                        eventDetailsEl.classList.remove('hackathon-details', 'contest-details'); // Remove old classes
+                        if (props.type === 'hackathon') {
+                            eventDetailsEl.classList.add('hackathon-details');
+                        } else if (props.type === 'contest') {
+                            eventDetailsEl.classList.add('contest-details');
+                        }
+                        // Show the details panel
+                        eventDetailsEl.classList.remove('d-none');
+                    }
+                }
+            });
+
+            calendarInstance.render(); // Explicitly render the calendar
+
+            // Add refresh button to force reload data
+            const refreshButton = document.createElement('button');
+            refreshButton.className = 'btn btn-sm btn-outline-secondary mb-2';
+            refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
+            refreshButton.addEventListener('click', function() {
+                const activeTab = document.querySelector('#eventTabs .nav-link.active');
+                const eventType = activeTab ? activeTab.getAttribute('data-type') : 'hackathons';
+                
+                // Clear cache for the active event type
+                eventCache[eventType] = null;
+                eventCache.lastFetchTime[eventType] = null;
+                
+                // Refetch events
+                calendarInstance.refetchEvents();
+            });
+            
+            // Insert refresh button before the calendar
+            calendarEl.parentNode.insertBefore(refreshButton, calendarEl);
+
+            // Add close button handler
+            closeEventDetailsBtn.addEventListener('click', function() {
+                eventDetailsEl.classList.add('d-none');
+                currentEventData = null; // Clear selection
+            });
+
+            // Tab switching logic - OPTIMIZED to use cached data
+            eventTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    eventTabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show corresponding download button
+                    const targetPaneId = this.id.replace('-tab', '-download');
+                    downloadButtonContainers.forEach(pane => {
+                        if (pane.id === targetPaneId) {
+                            pane.classList.add('show', 'active');
+                        } else {
+                            pane.classList.remove('show', 'active');
+                        }
+                    });
+                    
+                    // Just switch to cached data without refetching
+                    calendarInstance.refetchEvents();
+                    
+                    // Hide details panel when switching tabs
+                    eventDetailsEl.classList.add('d-none');
+                    currentEventData = null; 
+                });
+            });
+
+            // --- Handlers within DOMContentLoaded --- 
+            if (USER_LOGGED_IN) {
+                // Look up buttons here, once, as they don't change per event click
+                const saveEventBtn = document.getElementById('save-event-btn');
+                const findTeammatesBtn = document.getElementById('find-teammates-btn');
+                const actionStatusEl = document.getElementById('action-status'); // Keep this for handlers below
+                const teammatesListEl = document.getElementById('teammates-list'); // Keep this for handlers below
+                const teammatesSection = document.getElementById('teammates-section'); // Keep this for handlers below
+                const teammatesStatusEl = document.getElementById('teammates-status'); // Keep this for handlers below
+
+
+                // Save Event Button Click
+                if(saveEventBtn) { // Add null check
+                    saveEventBtn.addEventListener('click', function() { 
+                        if (!currentEventData) return;
+                        if (actionStatusEl) { // Add null check
+                            actionStatusEl.textContent = 'Saving...';
+                            actionStatusEl.className = 'mt-2 small text-muted';
+                        }
+                        
+                        const formData = new FormData();
+                        formData.append('platform', currentEventData.platform);
+                        formData.append('title', currentEventData.title);
+                        formData.append('start', currentEventData.start); 
+
+                        fetch('/save_event', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (actionStatusEl) { // Add null check
+                                actionStatusEl.textContent = data.message;
+                                actionStatusEl.className = data.success ? 'mt-2 small text-success' : 'mt-2 small text-danger';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Save Event Error:', error);
+                            if (actionStatusEl) { // Add null check
+                                actionStatusEl.textContent = 'Error saving event.';
+                                actionStatusEl.className = 'mt-2 small text-danger';
+                            }
+                        });
+                    });
+                }
+
+                // Find Teammates Button Click
+                if (findTeammatesBtn) { // Add null check
+                    findTeammatesBtn.addEventListener('click', function() {
+                        if (!currentEventData) return;
+
+                        if (teammatesSection) teammatesSection.classList.remove('d-none'); // Add null check
+                        if (teammatesListEl) teammatesListEl.innerHTML = ''; // Clear previous results
+                        if (teammatesStatusEl) { // Add null check
+                            teammatesStatusEl.textContent = 'Finding teammates...';
+                            teammatesStatusEl.className = 'mt-2 small text-muted';
+                        }
+
+                        const params = new URLSearchParams({
+                            platform: currentEventData.platform,
+                            title: currentEventData.title,
+                            start: currentEventData.start
+                        }).toString();
+
+                        fetch(`/find_teammates?${params}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                if (data.teammates && data.teammates.length > 0) {
+                                   if (teammatesStatusEl) teammatesStatusEl.textContent = ''; // Clear status
+                                    const ul = document.createElement('ul');
+                                    data.teammates.forEach(username => {
+                                        const li = document.createElement('li');
+                                        
+                                        const nameSpan = document.createElement('span');
+                                        nameSpan.textContent = username;
+
+                                        const messageForm = document.createElement('form');
+                                        messageForm.classList.add('d-inline-flex', 'message-form');
+                                        messageForm.dataset.recipient = username;
+                                        messageForm.innerHTML = `
+                                            <div class="input-group mb-2">
+                                                <textarea class="form-control form-control-sm" rows="2" placeholder="Send a message to ${username}..."></textarea>
+                                                <button type="submit" class="btn btn-outline-primary">
+                                                    <i class="fas fa-paper-plane"></i> Send
+                                                </button>
+                                            </div>
+                                        `;
+
+                                        li.appendChild(nameSpan);
+                                        li.appendChild(messageForm);
+                                        ul.appendChild(li);
+                                    });
+                                    if (teammatesListEl) teammatesListEl.appendChild(ul);
+                                } else {
+                                    if (teammatesStatusEl) { // Add null check
+                                        teammatesStatusEl.textContent = 'No other users have saved this event.';
+                                        teammatesStatusEl.className = 'mt-2 small text-info';
+                                    }
+                                }
+                            } else {
+                                 if (teammatesStatusEl) { // Add null check
+                                    teammatesStatusEl.textContent = data.message || 'Error finding teammates.';
+                                    teammatesStatusEl.className = 'mt-2 small text-danger';
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Find Teammates Error:', error);
+                            if (teammatesStatusEl) { // Add null check
+                                teammatesStatusEl.textContent = 'Error finding teammates.';
+                                teammatesStatusEl.className = 'mt-2 small text-danger';
+                            }
+                        });
+                    });
+                }
+
+                // Delegated Send Message Click Handler
+                if (teammatesListEl) { // Add null check
+                    teammatesListEl.addEventListener('submit', function(e) {
+                        if (e.target.tagName === 'FORM' && e.target.classList.contains('message-form')) {
+                            e.preventDefault(); 
+                            const form = e.target;
+                            const recipient = form.dataset.recipient;
+                            const textarea = form.querySelector('textarea');
+                            const body = textarea.value.trim();
+                            const sendButton = form.querySelector('button');
+
+                            if (!body || !recipient || !currentEventData) {
+                                 if (actionStatusEl) { // Add null check
+                                    actionStatusEl.textContent = 'Cannot send empty message.';
+                                    actionStatusEl.className = 'mt-2 small text-warning';
+                                 }
+                                return;
+                            }
+
+                            if (actionStatusEl) { // Add null check
+                                actionStatusEl.textContent = `Sending message to ${recipient}...`;
+                                actionStatusEl.className = 'mt-2 small text-muted';
+                            }
+                            if (sendButton) sendButton.disabled = true;
+                            if (textarea) textarea.disabled = true;
+
+                            const formData = new FormData();
+                            formData.append('recipient_username', recipient);
+                            formData.append('body', body);
+                            formData.append('event_platform', currentEventData.platform);
+                            formData.append('event_title', currentEventData.title);
+                            formData.append('event_start', currentEventData.start);
+
+                            fetch('/send_message', {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (actionStatusEl) { // Add null check
+                                    actionStatusEl.textContent = data.message;
+                                    actionStatusEl.className = data.success ? 'mt-2 small text-success' : 'mt-2 small text-danger';
+                                }
+                                if(data.success && textarea) {
+                                    textarea.value = ''; // Clear textarea on success
+                                }
+                            })
+                            .catch(error => {
+                                    console.error('Send Message Error:', error);
+                                    if (actionStatusEl) { // Add null check
+                                        actionStatusEl.textContent = 'Error sending message.';
+                                        actionStatusEl.className = 'mt-2 small text-danger';
+                                    }
+                            })
+                            .finally(() => {
+                                if (sendButton) sendButton.disabled = false;
+                                if (textarea) textarea.disabled = false;
+                            });
+                        }
+                    });
+                } // End if(teammatesListEl)
+
+            } // End if(USER_LOGGED_IN)
+
+        }); // End DOMContentLoaded
+    </script>
+    {# <script src="{{ url_for('static', filename='js/calendar.js') }}"></script> #} {# Removed redundant script tag #}
+{% endblock %}
+
+</body>
+</html> 
